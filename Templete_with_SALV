@@ -1,0 +1,295 @@
+*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+* Program Name   : Z
+* Title          : SALV_
+* Requestor      :
+* Req Recd Date  : 2018.xx.xx
+* Creation Date  : 2018.xx.xx
+* SAP Version    : SAP ECC 6.0
+* Author/ Id     : 김기호 / dev03
+* Based on       : (optional)
+* Project No.    :
+*
+* Description :
+* ~~~~~~~~~~~
+*
+*-----------------------------------------------------------------------
+* Change History :
+* ~~~~~~~~~~~~~~
+* U001 xxxx.xx.xx 최초생성
+*&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+report  zsample_001 message-id zmco.
+*----------------------------------------------------------------------*
+* DATA                                                                 *
+*----------------------------------------------------------------------*
+include <color>.
+include <icon>.
+include <symbol>.
+constants: gc_true  type sap_bool value 'X'.
+*... §5 Definition is later
+class lcl_handle_events definition deferred.
+data: gt_outtab type standard table of t001.
+data: gr_table   type ref to cl_salv_table.
+*... §5 object for handling the events of cl_salv_table
+data: gr_events type ref to lcl_handle_events.
+data: g_okcode type syucomm.
+*---------------------------------------------------------------------*
+*       CLASS lcl_handle_events DEFINITION
+*---------------------------------------------------------------------*
+*
+*---------------------------------------------------------------------*
+class lcl_handle_events definition.
+  public section.
+    methods:
+      on_link_click for event link_click of cl_salv_events_table
+        importing row column.
+endclass.                    "lcl_handle_events DEFINITION
+*---------------------------------------------------------------------*
+*       CLASS lcl_events_d0100 IMPLEMENTATION
+*---------------------------------------------------------------------*
+class lcl_handle_events implementation.
+  method on_link_click.
+    perform show_cell_info using row column.
+  endmethod.            "on_user_command
+*
+*  METHOD on_before_user_command.
+*    PERFORM show_function_info USING e_salv_function text-i09.
+*  ENDMETHOD.                    "on_before_user_command
+*
+*  METHOD on_after_user_command.
+*    PERFORM show_function_info USING e_salv_function text-i10.
+*  ENDMETHOD.                    "on_after_user_command
+endclass.                    "lcl_handle_events IMPLEMENTATION
+*----------------------------------------------------------------------*
+* SELECTION-SCREEN                                                     *
+*----------------------------------------------------------------------*
+selection-screen begin of block b1 with frame title text-h01.
+parameters: p_bukrs type bukrs memory id buk. " NO-DISPLAY.
+*SELECT-OPTIONS: so_bzdat    FOR anepv-bzdat.
+*SELECT-OPTIONS: so_eaufn    FOR anlav-eaufn
+*                               MEMORY ID anr
+*                               MATCHCODE OBJECT orde.
+selection-screen end of block b1.
+*----------------------------------------------------------------------*
+* INITIALIZATION                                                       *
+*----------------------------------------------------------------------*
+initialization.
+  perform set_init.
+*----------------------------------------------------------------------*
+* AT SELECTION-SCREEN                                                  *
+*----------------------------------------------------------------------*
+at selection-screen.
+*----------------------------------------------------------------------*
+* START-OF-SELECTION                                                   *
+*----------------------------------------------------------------------*
+start-of-selection.
+  perform select_data.
+*----------------------------------------------------------------------*
+* END-OF-SELECTION                                                     *
+*----------------------------------------------------------------------*
+end-of-selection.
+  perform display_data.
+************************************************************************
+* FORM ROUTINE                                                         *
+************************************************************************
+*&---------------------------------------------------------------------*
+*&      Form  DISPLAY_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+form display_data .
+  try.
+      cl_salv_table=>factory(
+        importing
+          r_salv_table = gr_table
+        changing
+          t_table      = gt_outtab ).
+    catch cx_salv_msg.                                  "#EC NO_HANDLER
+  endtry.
+*... §3 Functions
+*... §3.1 activate ALV generic Functions
+*... §3.2 include own functions by setting own status
+  gr_table->set_screen_status(
+    pfstatus      =  'SALV_STANDARD'
+    report        =  sy-repid
+    set_functions = gr_table->c_functions_all ).
+*... $4 set the columns technical
+  data: lr_columns  type ref to cl_salv_columns_table.
+  lr_columns = gr_table->get_columns( ).
+  lr_columns->set_optimize( gc_true ).
+  perform set_columns_technical using lr_columns.
+*... §5 set layout
+  data: lr_layout type ref to cl_salv_layout,
+        ls_key    type salv_s_layout_key.
+  lr_layout = gr_table->get_layout( ).
+*... §5.1 set the Layout Key
+  ls_key-report = sy-repid.
+  lr_layout->set_key( ls_key ).
+*... §5.2 set usage of default Layouts
+  lr_layout->set_default( 'X' ).
+*... §5.3 set Layout save restriction
+  lr_layout->set_save_restriction( if_salv_c_layout=>restrict_none ).
+*... §6 register to the events of cl_salv_table
+  data: lr_events type ref to cl_salv_events_table.
+  lr_events = gr_table->get_event( ).
+  create object gr_events.
+*... §6.1 register to the event USER_COMMAND
+  set handler gr_events->on_link_click for lr_events.
+*  SET HANDLER gr_events->on_user_command FOR lr_events.
+*  SET HANDLER gr_events->on_before_user_command FOR lr_events.
+*  SET HANDLER gr_events->on_after_user_command FOR lr_events.
+*... set list title
+  data: lr_display_settings type ref to cl_salv_display_settings,
+        l_title type lvc_title.
+  l_title = text-t01.
+  lr_display_settings = gr_table->get_display_settings( ).
+  lr_display_settings->set_list_header( l_title ).
+*... §7 display the table
+  gr_table->display( ).
+endform.                    " DISPLAY_DATA
+*&---------------------------------------------------------------------*
+*&      Form  SET_COLUMNS_TECHNICAL
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LR_COLUMNS  text
+*----------------------------------------------------------------------*
+form set_columns_technical  using lo_columns type ref to cl_salv_columns_table.
+  data: lo_column type ref to cl_salv_column_table.
+**$1필드 숨김
+  lo_column ?= lo_columns->get_column( 'MANDT' ).
+  lo_column->set_visible( if_salv_c_bool_sap=>false ).
+  lo_column ?= lo_columns->get_column( 'BUVAR' ).
+  lo_column->set_visible( if_salv_c_bool_sap=>false ).
+  lo_column ?= lo_columns->get_column( 'FDBUK' ).
+  lo_column->set_visible( if_salv_c_bool_sap=>false ).
+  lo_column ?= lo_columns->get_column( 'XFDIS' ).
+  lo_column->set_visible( if_salv_c_bool_sap=>false ).
+  lo_column ?= lo_columns->get_column( 'XVALV' ).
+  lo_column->set_visible( if_salv_c_bool_sap=>false ).
+**$2 필드명 지정
+*  lo_column ?= lo_columns->get_column( 'BZDAT' ).
+*  lo_column->set_short_text( '취득일자' ).
+*  lo_column->set_medium_text( '취득일자' ).
+*  lo_column->set_long_text( '취득일자' ).
+**$3 Key 필드지정
+*  lo_column ?= lo_columns->get_column( 'GJAHR' ).
+*  lo_column->set_key( if_salv_c_bool_sap=>true ).
+*
+*  lo_column ?= lo_columns->get_column( 'EAUFN' ).
+*  lo_column->set_key( if_salv_c_bool_sap=>true ).
+*
+*  lo_column ?= lo_columns->get_column( 'KTEXT' ).
+*  lo_column->set_key( if_salv_c_bool_sap=>true ).
+*
+*  lo_column ?= lo_columns->get_column( 'ANLN1' ).
+*  lo_column->set_key( if_salv_c_bool_sap=>true ).
+*
+*  lo_column ?= lo_columns->get_column( 'TXT50' ).
+*  lo_column->set_key( if_salv_c_bool_sap=>true ).
+**$4 필드속성 지정
+*  lo_column ?= lo_columns->get_column( 'ANLN1' ).
+*  lo_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+*  lo_column ?= lo_columns->get_column( 'BELNR' ).
+*  lo_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+endform.                    " SET_COLUMNS_TECHNICAL
+*&---------------------------------------------------------------------*
+*&      Form  ON_USER_COMMAND
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_E_SALV_FUNCTION  text
+*----------------------------------------------------------------------*
+form on_user_command  using i_function type salv_de_function.
+endform.                    " ON_USER_COMMAND
+*&---------------------------------------------------------------------*
+*&      Form  SELECT_DATA
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+form select_data .
+*  DATA: ls_outtab TYPE zcos4220.
+*
+*  REFRESH gt_outtab.
+*
+  select * into corresponding fields of table gt_outtab
+    from t001
+   where bukrs eq p_bukrs.
+*
+*  LOOP AT gt_outtab INTO ls_outtab.
+** 오더 이름
+*    SELECT SINGLE ktext INTO ls_outtab-ktext
+*      FROM aufk
+*     WHERE aufnr = ls_outtab-eaufn.
+** 자산클래스 이름
+*    SELECT SINGLE txk50 INTO ls_outtab-txk50
+*      FROM ankt
+*     WHERE spras = sy-langu
+*       AND anlkl = ls_outtab-anlkl.
+*
+** 코스트센터 이름
+*    SELECT SINGLE ltext INTO ls_outtab-ltext
+*      FROM cskt
+*     WHERE spras = sy-langu
+*       AND kostl = ls_outtab-kostl
+*       AND datbi >= sy-datum.
+** 통화키
+*    SELECT SINGLE waers INTO ls_outtab-waers
+*      FROM t093b
+*     WHERE bukrs = ls_outtab-bukrs
+*       AND afabe = ls_outtab-afabe.
+*
+*    MODIFY gt_outtab FROM ls_outtab.
+*  ENDLOOP.
+*
+*  SORT gt_outtab BY eaufn.
+endform.                    " SELECT_DATA
+*&---------------------------------------------------------------------*
+*&      Form  SET_INIT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+form set_init .
+*  p_bukrs = '1000'.
+endform.                    " SET_INIT
+*&---------------------------------------------------------------------*
+*&      Form  SHOW_CELL_INFO
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_ROW  text
+*      -->P_COLUMN  text
+*----------------------------------------------------------------------*
+form show_cell_info  using    p_row
+                              p_column.
+*  DATA: ls_outtab TYPE zcos4220.
+*
+*  CASE  p_column.
+*    WHEN 'BELNR'.
+*      READ TABLE gt_outtab INTO ls_outtab INDEX p_row.
+*
+*      SET PARAMETER ID 'BLN' FIELD ls_outtab-belnr.
+*      SET PARAMETER ID 'BUK' FIELD ls_outtab-bukrs.
+*      SET PARAMETER ID 'GJR' FIELD ls_outtab-gjahr.
+*
+*      CALL TRANSACTION 'FB03' AND SKIP FIRST SCREEN.
+*
+*    WHEN 'ANLN1'.
+*
+*      READ TABLE gt_outtab INTO ls_outtab INDEX p_row.
+*
+*      SET PARAMETER ID 'AN1' FIELD ls_outtab-anln1.
+*      SET PARAMETER ID 'BUK' FIELD ls_outtab-bukrs.
+*      SET PARAMETER ID 'AN2' FIELD ls_outtab-anln2.
+*
+*      CALL TRANSACTION 'AS03' AND SKIP FIRST SCREEN.
+*  ENDCASE.
+endform.                    " SHOW_CELL_INFO
